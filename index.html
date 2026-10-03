@@ -53,22 +53,19 @@ button,input,textarea{font:inherit;color:inherit}
 #top{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;
   justify-content:space-between;gap:8px;padding:calc(var(--sat) + 8px) 12px 8px;pointer-events:none}
 #top > *{pointer-events:auto}
-#top .btn{background:rgba(21,26,36,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#top .btn{background:rgba(21,26,36,.75)}
 #status{font-weight:600;font-variant-numeric:tabular-nums;text-shadow:0 1px 6px #000}
 #status.live{color:var(--rec)}
 
 #box{position:absolute;z-index:4;display:flex;flex-direction:column;overflow:hidden;
   border-radius:18px;border:1px solid rgba(255,255,255,.14);
-  background:rgba(21,26,36,var(--alpha,.55));
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  background:rgba(21,26,36,var(--alpha,.55))}
 #boxbar{height:30px;flex:none;display:grid;place-items:center;touch-action:none;cursor:grab}
 #boxbar i{display:block;width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.6)}
-#vp{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab;
-  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 8%,#000 88%,transparent 100%);
-  mask-image:linear-gradient(to bottom,transparent 0,#000 8%,#000 88%,transparent 100%)}
+#vp{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab}
 #vp.mirror{transform:scaleX(-1)}
 #text{position:relative;padding:0 16px;text-align:left;font-weight:700;line-height:1.35;
-  text-shadow:0 1px 8px rgba(0,0,0,.6);will-change:transform;user-select:none;-webkit-user-select:none}
+  text-shadow:0 1px 4px rgba(0,0,0,.7);will-change:transform;user-select:none;-webkit-user-select:none}
 #text p{margin:0 0 .55em}
 #text .gap{height:.9em}
 .w{transition:opacity .25s,color .25s}
@@ -83,8 +80,7 @@ button,input,textarea{font:inherit;color:inherit}
 #bottom{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;
   align-items:center;gap:30px;padding:12px 16px calc(var(--sab) + 18px)}
 .round{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;cursor:pointer;
-  background:rgba(21,26,36,.65);border:1px solid rgba(255,255,255,.22);color:var(--paper);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  background:rgba(21,26,36,.7);border:1px solid rgba(255,255,255,.22);color:var(--paper)}
 #recBtn{width:74px;height:74px;border-radius:50%;border:4px solid var(--paper);background:transparent;
   position:relative;cursor:pointer;flex:none}
 #recBtn::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--rec)}
@@ -98,6 +94,7 @@ button,input,textarea{font:inherit;color:inherit}
   padding:14px 16px calc(var(--sab) + 14px);display:flex;flex-direction:column;gap:12px}
 .sheethead{display:flex;justify-content:space-between;align-items:center}
 .sheethead b{font:600 20px/1 Georgia,serif}
+.hint{margin:-4px 0 0;color:var(--dim);font-size:12px;line-height:1.4}
 .row{display:flex;gap:12px;align-items:center}
 .row.wrap{flex-wrap:wrap}
 .ctl{flex:1;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--dim);min-width:0}
@@ -174,6 +171,8 @@ input[type=range]{width:100%;accent-color:var(--cue);margin:6px 0}
         <button id="mirrorBtn" class="btn chip" style="flex:1" aria-pressed="false">Mirror text</button>
         <button id="voiceBtn" class="btn chip" style="flex:1" aria-pressed="false">Voice follow</button>
       </div>
+      <button id="mirrorRecBtn" class="btn chip" aria-pressed="true">Mirror my recording</button>
+      <p class="hint">Saves your front camera video the way you see yourself in the mirror. It does not affect the back camera.</p>
       <div class="row wrap">
         <button id="restartBtn" class="btn" style="flex:1">Restart script</button>
         <button id="resetBoxBtn" class="btn" style="flex:1">Reset box</button>
@@ -216,7 +215,7 @@ const store = {
 const S = {
   script: store.get('script', ''), spd: store.get('spd', 45), fs: store.get('fs', 26),
   alpha: store.get('alpha', 0.55), mirror: store.get('mirror', false),
-  voice: store.get('voice', false), facing: store.get('facing', 'user'),
+  voice: store.get('voice', false), facing: store.get('facing', 'user'), mirrorRec: store.get('mirrorRec', true),
   bx: store.get('bx', 0.06), by: store.get('by', null), bw: store.get('bw', 0.88), bh: store.get('bh', 0.32)
 };
 const save = () => { for (const k in S) store.set(k, S[k]); };
@@ -230,7 +229,7 @@ const cam = $('#cam'), box = $('#box'), boxbar = $('#boxbar'), grip = $('#grip')
 const vp = $('#vp'), text = $('#text'), rlEl = $('#rl');
 const topbar = $('#top'), statusEl = $('#status'), cd = $('#cd'), sheet = $('#sheet');
 const speedIn = $('#speed'), sizeIn = $('#size'), alphaIn = $('#alphaIn');
-const mirrorBtn = $('#mirrorBtn'), voiceBtn = $('#voiceBtn'), playBtn = $('#playBtn'), recBtn = $('#recBtn');
+const mirrorRecBtn = $('#mirrorRecBtn'), mirrorBtn = $('#mirrorBtn'), voiceBtn = $('#voiceBtn'), playBtn = $('#playBtn'), recBtn = $('#recBtn');
 const playback = $('#playback'), shareBtn = $('#shareBtn');
 
 let toastTimer;
@@ -401,6 +400,7 @@ function syncControls(){
   alphaIn.value = S.alpha; box.style.setProperty('--alpha', S.alpha);
   vp.classList.toggle('mirror', S.mirror);
   mirrorBtn.setAttribute('aria-pressed', S.mirror);
+  mirrorRecBtn.setAttribute('aria-pressed', S.mirrorRec);
   syncVoiceUI();
 }
 function syncVoiceUI(){
@@ -413,6 +413,10 @@ speedIn.oninput = () => { S.spd = +speedIn.value; $('#speedV').textContent = S.s
 sizeIn.oninput = () => { S.fs = +sizeIn.value; $('#sizeV').textContent = S.fs; save(); layout(true); };
 alphaIn.oninput = () => { S.alpha = +alphaIn.value; box.style.setProperty('--alpha', S.alpha); save(); };
 mirrorBtn.onclick = () => { S.mirror = !S.mirror; save(); syncControls(); };
+mirrorRecBtn.onclick = () => {
+  if (recorder && recorder.state === 'recording'){ toast('Change this before you start recording.'); return; }
+  S.mirrorRec = !S.mirrorRec; save(); syncControls();
+};
 voiceBtn.onclick = () => {
   S.voice = !S.voice; save(); syncVoiceUI();
   if (S.voice){ idx = nearestIdx(); markWords(); if (playing){ aim(); recStart(); } }
@@ -460,6 +464,7 @@ function recStart(){
   rec.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') voiceOff('Microphone is blocked. Allow it to use voice follow.');
     else if (e.error === 'network') voiceOff('Voice follow needs internet. Using speed scroll.');
+    else if (e.error === 'audio-capture') voiceOff('Voice follow cannot share the microphone while recording on this phone. Using speed scroll.');
   };
   rec.onend = () => {
     rec = null;
@@ -501,7 +506,7 @@ function heard(transcript){
 let stream = null;
 async function openCam(){
   closeCam();
-  const video = { facingMode: { ideal: S.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+  const video = { facingMode: { ideal: S.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } };
   try{
     stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
   }catch(_){
@@ -515,6 +520,7 @@ async function openCam(){
   else toast('Camera is off. You can still read your script.', 4500);
 }
 function closeCam(){
+  stopFlip();
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = null; cam.srcObject = null; camOk = false;
 }
@@ -525,8 +531,36 @@ $('#flipBtn').onclick = async () => {
 
 /* ---------- recording ---------- */
 let recorder = null, chunks = [], blob = null, blobUrl = '', recTimer = 0, recStarted = 0, busy = false;
-const pickMime = () => ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+const pickMime = () => ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
   .find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+
+let flipActive = false, flipCanvas = null, flipOut = null;
+function stopFlip(){
+  flipActive = false;
+  if (flipOut) flipOut.getVideoTracks().forEach(t => t.stop());
+  flipOut = null; flipCanvas = null;
+}
+function makeRecStream(){
+  if (!(S.mirrorRec && S.facing === 'user')) return stream;
+  try{
+    const vt = stream.getVideoTracks()[0], st = vt ? vt.getSettings() : {};
+    const w = cam.videoWidth || st.width || 1280, h = cam.videoHeight || st.height || 720;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    if (!c.captureStream) return stream;
+    const ctx = c.getContext('2d', { alpha: false });
+    const draw = () => {
+      if (!flipActive) return;
+      ctx.save(); ctx.translate(w, 0); ctx.scale(-1, 1); ctx.drawImage(cam, 0, 0, w, h); ctx.restore();
+      next();
+    };
+    const next = () => { if (cam.requestVideoFrameCallback) cam.requestVideoFrameCallback(draw); else requestAnimationFrame(draw); };
+    flipCanvas = c; flipActive = true;
+    ctx.save(); ctx.translate(w, 0); ctx.scale(-1, 1); ctx.drawImage(cam, 0, 0, w, h); ctx.restore();
+    next();
+    flipOut = new MediaStream([...c.captureStream(30).getVideoTracks(), ...stream.getAudioTracks()]);
+    return flipOut;
+  }catch(_){ stopFlip(); return stream; }
+}
 
 function countdown(n){
   return new Promise(res => {
@@ -550,12 +584,14 @@ async function onRecord(){
   busy = true; await countdown(3); busy = false;
   const mime = pickMime();
   chunks = [];
-  try{ recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8000000 } : undefined); }
+  const recSource = makeRecStream();
+  try{ recorder = new MediaRecorder(recSource, mime ? { mimeType: mime, videoBitsPerSecond: 3500000 } : undefined); }
   catch(_){
-    try{ recorder = new MediaRecorder(stream); }catch(__){ toast('Recording is not available on this device.'); return; }
+    try{ recorder = new MediaRecorder(recSource); }catch(__){ stopFlip(); toast('Recording is not available on this device.'); return; }
   }
   recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   recorder.onstop = () => {
+    stopFlip();
     blob = new Blob(chunks, { type: recorder.mimeType || mime || 'video/webm' });
     showReview();
   };
