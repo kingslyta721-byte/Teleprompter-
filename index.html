@@ -504,20 +504,73 @@ function heard(transcript){
 
 /* ---------- camera ---------- */
 let stream = null;
-async function openCam(){
-  closeCam();
-  const video = { facingMode: { ideal: S.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } };
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
-  }catch(_){
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({ video });
-      toast('Microphone is off. Recordings will have no sound.', 4500);
-    }catch(__){ stream = null; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function tryGet(c){
+  try{ return { s: await navigator.mediaDevices.getUserMedia(c) }; }
+  catch(e){ return { e }; }
+}
+async function getStream(facing){
+  let err = null;
+  const videos = [
+    { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+    { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    { facingMode: { ideal: facing } }
+  ];
+  for (const audio of [true, false]){
+    for (const video of videos){
+      const r = await tryGet({ video, audio });
+      if (r.s) return { stream: r.s, noMic: !audio };
+      err = r.e;
+      if (err && err.name === 'NotAllowedError') return { err };
+    }
   }
-  camOk = !!stream;
-  if (stream){ cam.srcObject = stream; cam.classList.toggle('front', S.facing === 'user'); cam.play().catch(() => {}); }
-  else toast('Camera is off. You can still read your script.', 4500);
+  // last resort: pick the camera by name
+  try{
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    const want = facing === 'user' ? /front|user|selfie|face/i : /back|rear|environment/i;
+    const ordered = all.filter(d => want.test(d.label)).concat(all.filter(d => !want.test(d.label)));
+    for (const d of ordered){
+      for (const audio of [true, false]){
+        const r = await tryGet({ video: { deviceId: { exact: d.deviceId } }, audio });
+        if (r.s) return { stream: r.s, noMic: !audio };
+        err = r.e || err;
+      }
+    }
+  }catch(_){}
+  return { err };
+}
+function camMsg(e){
+  const n = (e && e.name) || 'Error';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Camera is blocked. In Chrome, tap the lock icon, then Permissions, and allow Camera.';
+  if (n === 'NotReadableError' || n === 'AbortError') return 'Another app is using the camera. Close TikTok, WhatsApp and the Camera app, then tap Flip camera.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'This phone could not find that camera.';
+  return 'Camera would not start (' + n + ').';
+}
+let camBusy = false;
+async function openCam(){
+  if (camBusy) return;
+  camBusy = true;
+  try{
+    const had = !!stream;
+    closeCam();
+    if (had) await sleep(350);
+    let res = await getStream(S.facing);
+    if (!res.stream && res.err && (res.err.name === 'NotReadableError' || res.err.name === 'AbortError')){
+      await sleep(900); res = await getStream(S.facing);
+    }
+    stream = res.stream || null; camOk = !!stream;
+    if (stream){
+      const vt = stream.getVideoTracks()[0], actual = vt && vt.getSettings ? vt.getSettings().facingMode : '';
+      if (actual === 'environment' && S.facing === 'user'){
+        S.facing = 'environment'; save();
+        toast('The front camera would not start, so the back camera is showing.', 6000);
+      } else if (actual === 'user' && S.facing !== 'user'){ S.facing = 'user'; save(); }
+      cam.srcObject = stream; cam.classList.toggle('front', S.facing === 'user'); cam.play().catch(() => {});
+      if (res.noMic) toast('Microphone is off. Recordings will have no sound.', 5000);
+    } else {
+      toast(camMsg(res.err), 9000);
+    }
+  } finally { camBusy = false; }
 }
 function closeCam(){
   stopFlip();
